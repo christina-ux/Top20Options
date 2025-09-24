@@ -1,0 +1,23 @@
+{
+  "name": "policyedge-daily-report",
+  "version": "1.0.0",
+  "description": "PolicyEdge Daily Equity + Options Reflex Report System",
+  "main": "public/index.html",
+  "scripts": {
+    "dev": "python -m uvicorn policyedge_top20_report.app.main:app --reload --host 0.0.0.0 --port 8080",
+    "build": "echo 'Build complete - static files ready'",
+    "start": "echo 'Use Vercel for deployment'"
+  },
+  "keywords": [
+    "finance",
+    "options",
+    "regulatory",
+    "trading",
+    "report"
+  ],
+  "author": "PolicyEdge AI",
+  "license": "Proprietary",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

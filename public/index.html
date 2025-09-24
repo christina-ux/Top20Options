@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PolicyEdge - Daily Equity + Options Reflex Report</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .header {
+            text-align: center;
+            background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+        .header p {
+            margin: 0.5rem 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+        .controls {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .btn {
+            background: #1e3a8a;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin: 0 10px;
+            transition: background-color 0.2s;
+        }
+        .btn:hover {
+            background: #1e40af;
+        }
+        .btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        .report-section {
+            background: white;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .section-header {
+            background: #f3f4f6;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .section-header h2 {
+            margin: 0;
+            color: #1f2937;
+            font-size: 1.5rem;
+        }
+        .section-content {
+            padding: 1.5rem;
+        }
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #6b7280;
+        }
+        .error {
+            color: #dc2626;
+            background: #fef2f2;
+            padding: 1rem;
+            border-radius: 4px;
+            border: 1px solid #fecaca;
+        }
+        .market-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .stat-card {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 6px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #1e40af;
+        }
+        .stat-label {
+            font-size: 0.875rem;
+            color: #64748b;
+            margin-top: 0.25rem;
+        }
+        .tripwire {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 6px;
+            border-left: 4px solid #e5e7eb;
+        }
+        .tripwire.triggered {
+            background: #fef2f2;
+            border-left-color: #dc2626;
+        }
+        .tripwire.monitoring {
+            background: #fffbeb;
+            border-left-color: #f59e0b;
+        }
+        .tripwire.green {
+            background: #f0fdf4;
+            border-left-color: #10b981;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        th {
+            background: #f9fafb;
+            font-weight: 600;
+            color: #374151;
+        }
+        .disclaimer {
+            background: #f3f4f6;
+            padding: 1rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            color: #6b7280;
+            text-align: center;
+            margin-top: 2rem;
+        }
+        .timestamp {
+            text-align: center;
+            color: #6b7280;
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+        }
+        pre {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>PolicyEdge Daily Report</h1>
+        <p>Equity + Options Reflex Report — <span id="report-date"></span></p>
+    </div>
+
+    <div class="controls">
+        <button class="btn" onclick="loadFullReport()" id="load-btn">Generate Today's Report</button>
+        <button class="btn" onclick="loadSection('market-shift')">Market Shift</button>
+        <button class="btn" onclick="loadSection('intelligence-mapping')">Intelligence Mapping</button>
+        <button class="btn" onclick="loadSection('tripwires')">Tripwires</button>
+        <button class="btn" onclick="loadSection('structures')">Structures</button>
+    </div>
+
+    <div id="report-content">
+        <div class="report-section">
+            <div class="section-content">
+                <div class="loading">
+                    Click "Generate Today's Report" to load the daily analysis
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="disclaimer">
+        <strong>Disclaimer:</strong> This report provides structures and analysis only. No investment advice is provided. 
+        All outputs are for educational and informational purposes only. Users are responsible for their own investment decisions 
+        and compliance with applicable securities regulations.
+        <br><br>
+        © PolicyEdge AI - IP protected under Sovereignty Protocol
+    </div>
+
+    <script>
+        function setLoading(isLoading) {
+            const btn = document.getElementById('load-btn');
+            btn.disabled = isLoading;
+            btn.textContent = isLoading ? 'Generating...' : 'Generate Today\'s Report';
+        }
+
+        function showError(message) {
+            document.getElementById('report-content').innerHTML = `
+                <div class="report-section">
+                    <div class="section-content">
+                        <div class="error">Error: ${message}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function formatMarketShift(data) {
+            return `
+                <div class="market-stats">
+                    <div class="stat-card">
+                        <div class="stat-value">${data.pct_spy || 'N/A'}</div>
+                        <div class="stat-label">SPY</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${data.pct_qqq || 'N/A'}</div>
+                        <div class="stat-label">QQQ</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${data.pct_iwm || 'N/A'}</div>
+                        <div class="stat-label">IWM</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${data.pct_tlt || 'N/A'}</div>
+                        <div class="stat-label">TLT</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value">${data.pct_btc || 'N/A'}</div>
+                        <div class="stat-label">BTC</div>
+                    </div>
+                </div>
+                <p><strong>Leaders:</strong> ${data.leaders || 'N/A'}</p>
+                <p><strong>Breadth A/D:</strong> ${data.ad_ratio || 'N/A'}; ${data.vwap_notes || 'VWAP analysis pending'}</p>
+            `;
+        }
+
+        function formatIntelligenceMapping(data) {
+            if (!data || data.length === 0) return '<p>No intelligence signals available</p>';
+            
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Intelligence Signal</th>
+                            <th>Market Impact</th>
+                            <th>Options Read</th>
+                            <th>Source Refs</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            data.forEach(item => {
+                html += `
+                    <tr>
+                        <td>${item.intelligence_signal}</td>
+                        <td>${item.market_impact}</td>
+                        <td>${item.options_read}</td>
+                        <td>${item.source_refs}</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            return html;
+        }
+
+        function formatTripwires(data) {
+            if (!data || data.length === 0) return '<p>No tripwires active</p>';
+            
+            let html = '';
+            data.forEach(tripwire => {
+                const statusClass = tripwire.status.toLowerCase().replace(' ', '');
+                const emoji = tripwire.status === 'TRIGGERED' ? '🔴' : 
+                             tripwire.status === 'MONITORING' ? '🟡' : '🟢';
+                
+                html += `
+                    <div class="tripwire ${statusClass}">
+                        <h4>${emoji} ${tripwire.tripwire} - ${tripwire.status}</h4>
+                        <p><strong>Evidence:</strong> ${tripwire.evidence}</p>
+                        <p><strong>Action:</strong> ${tripwire.action}</p>
+                    </div>
+                `;
+            });
+            
+            return html;
+        }
+
+        function formatStructures(data) {
+            if (!data || data.length === 0) return '<p>No structures available</p>';
+            
+            let html = '';
+            data.forEach((structure, index) => {
+                const impact = structure.dollar_impact_usd ? 
+                    `$${(structure.dollar_impact_usd / 1e9).toFixed(1)}B` : 'TBD';
+                
+                html += `
+                    <div class="structure-item" style="margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #e5e7eb;">
+                        <h4>${index + 1}. ${structure.signal || 'Signal'}-Related Structure</h4>
+                        <p><strong>Underlying:</strong> ${structure.tradable_unit || 'N/A'}</p>
+                        <p><strong>Strategy:</strong> ${structure.options_play || 'TBD'}</p>
+                        <p><strong>Impact Size:</strong> ${impact}</p>
+                        <p><strong>Confidence:</strong> ${structure.posterior || 'Medium'}</p>
+                    </div>
+                `;
+            });
+            
+            return html;
+        }
+
+        async function loadSection(section) {
+            setLoading(true);
+            try {
+                const response = await fetch(`/api/${section}`);
+                const result = await response.json();
+                
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+                
+                let content;
+                if (section === 'market-shift') {
+                    content = formatMarketShift(result.data);
+                } else if (section === 'intelligence-mapping') {
+                    content = formatIntelligenceMapping(result.data);
+                } else if (section === 'tripwires') {
+                    content = formatTripwires(result.data);
+                } else if (section === 'structures') {
+                    content = formatStructures(result.data);
+                }
+                
+                document.getElementById('report-content').innerHTML = `
+                    <div class="report-section">
+                        <div class="section-header">
+                            <h2>${result.section}</h2>
+                        </div>
+                        <div class="section-content">
+                            ${content}
+                        </div>
+                    </div>
+                `;
+                
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        async function loadFullReport() {
+            setLoading(true);
+            try {
+                const response = await fetch('/api/full-report');
+                const result = await response.json();
+                
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+                
+                document.getElementById('report-date').textContent = result.report_date;
+                
+                const sections = result.sections;
+                let html = `
+                    <div class="timestamp">Generated at: ${new Date(result.generated_at).toLocaleString()}</div>
+                `;
+                
+                // Market Shift section
+                html += `
+                    <div class="report-section">
+                        <div class="section-header">
+                            <h2>Today's Market Shift</h2>
+                        </div>
+                        <div class="section-content">
+                            ${formatMarketShift(sections.market_shift.data)}
+                        </div>
+                    </div>
+                `;
+                
+                // Intelligence Mapping section
+                html += `
+                    <div class="report-section">
+                        <div class="section-header">
+                            <h2>Intelligence → Market Mapping</h2>
+                        </div>
+                        <div class="section-content">
+                            ${formatIntelligenceMapping(sections.intelligence_mapping.data)}
+                        </div>
+                    </div>
+                `;
+                
+                // Tripwires section
+                html += `
+                    <div class="report-section">
+                        <div class="section-header">
+                            <h2>Tripwires to Drive Options Flow</h2>
+                        </div>
+                        <div class="section-content">
+                            ${formatTripwires(sections.tripwires.data)}
+                        </div>
+                    </div>
+                `;
+                
+                // Structures section
+                html += `
+                    <div class="report-section">
+                        <div class="section-header">
+                            <h2>What to Consider Placing Today</h2>
+                        </div>
+                        <div class="section-content">
+                            ${formatStructures(sections.structures.data)}
+                        </div>
+                    </div>
+                `;
+                
+                // Method Note
+                html += `
+                    <div class="report-section">
+                        <div class="section-header">
+                            <h2>Method Note (PolicyEdge Protocol)</h2>
+                        </div>
+                        <div class="section-content">
+                            <p>Feeds, timestamps, credibility results, posterior thresholds, evidence gaps, calibration metrics (Brier/ECE).</p>
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById('report-content').innerHTML = html;
+                
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // Set initial date
+        document.getElementById('report-date').textContent = new Date().toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long', 
+            day: 'numeric'
+        });
+    </script>
+</body>
+</html>
