@@ -1,0 +1,21 @@
+name: regulatory_alpha_daily_v3
+schedule: [ "08:45 ET", "12:30 ET", "16:10 ET" ]
+polling: { tripwires: "*/5 * * * *" }
+steps:
+  - DataIngestor
+  - PolicyWatcher
+  - RegulatoryImpactModeler
+  - DollarImpactCalculator
+  - ClusterScorer
+  - RiskSizer
+  - SignalSynthesizer
+  - TableComposer
+  - OptionsStructurer
+  - TripwireEvaluator
+  - EvidenceVerifier
+  - AuditPackager
+  - LearningLoop
+  - Publisher
+  - SovereigntyGuard
+on_error: continue_with_annotations
+artifacts: { vault_bundle: true }

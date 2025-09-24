@@ -1,0 +1,21 @@
+{
+  "version": "seed_priors_v1",
+  "notes": "Initial priors; must be calibrated from historical hit rates; replace with empirical values when available.",
+  "clusters": {
+    "CMS": {
+      "prior": 0.6
+    },
+    "CFPB": {
+      "prior": 0.58
+    },
+    "DOE_FERC": {
+      "prior": 0.57
+    },
+    "SEC": {
+      "prior": 0.55
+    },
+    "MBA": {
+      "prior": 0.56
+    }
+  }
+}

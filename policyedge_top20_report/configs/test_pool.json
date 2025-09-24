@@ -1,0 +1,43 @@
+{
+  "exp_id": "PE_TESTPOOL_D10",
+  "clusters": {
+    "SEC": [
+      "XOM",
+      "CAT",
+      "MS",
+      "GS",
+      "BLK",
+      "TROW"
+    ],
+    "FERC": [
+      "AEP",
+      "EXC",
+      "ED",
+      "XEL",
+      "NRG",
+      "AES"
+    ],
+    "DOE": [
+      "SRE",
+      "WMB",
+      "KMI",
+      "ET",
+      "OKE",
+      "FLR",
+      "KBR"
+    ],
+    "CFPB": [
+      "SYF",
+      "COF",
+      "AXP",
+      "JPM",
+      "WFC",
+      "BAC"
+    ],
+    "HEDGES": [
+      "ENPH",
+      "FSLR",
+      "NEE"
+    ]
+  }
+}

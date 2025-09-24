@@ -1,0 +1,3 @@
+rule_id,control_id,status,artifact_link
+TW-CMS-NEG-RATE,NonAdvice,active,VAULT://manifest
+PUB-GATE,Calibration,active,VAULT://manifest

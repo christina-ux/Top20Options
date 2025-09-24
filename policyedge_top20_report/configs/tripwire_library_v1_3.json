@@ -1,0 +1,196 @@
+{
+  "version": "1.3",
+  "tripwires": [
+    {
+      "id": "cms_final_rate_negative",
+      "description": "CMS final rate below advance by threshold",
+      "condition": "policy_event(agency='CMS' AND type='FinalRate' AND RateDelta_pct <= -0.5)",
+      "on_true_emit": [
+        "bear_put_spreads_on_MA_heavy_insurers"
+      ],
+      "metrics_logged": [
+        "RateDelta_pct",
+        "Elasticity",
+        "EPS_delta_%",
+        "DollarImpact"
+      ]
+    },
+    {
+      "id": "cfpb_late_fee_cap_final",
+      "description": "CFPB late-fee cap finalized or upheld",
+      "condition": "policy_event(agency='CFPB' AND rule='LateFeeCap' AND status in ['Final','Upheld'])",
+      "on_true_emit": [
+        "debit_put_spreads_on_fee_dependent_issuers",
+        "long_diversified_banks_spreads"
+      ],
+      "metrics_logged": [
+        "CapChange_%",
+        "Baseline_Fee_Revenue",
+        "Fee_Revenue_Loss"
+      ]
+    },
+    {
+      "id": "doe_lng_pause_active",
+      "description": "DOE LNG permit pause/extension",
+      "condition": "policy_event(agency in ['DOE','FERC'] AND topic='LNG' AND action in ['Pause','Extension'])",
+      "on_true_emit": [
+        "puts_on_LNG_developers",
+        "call_spreads_on_utilities"
+      ],
+      "metrics_logged": [
+        "Capex_Shift",
+        "VolumeShift_bcfd"
+      ]
+    },
+    {
+      "id": "sec_disclosure_rule_in_force",
+      "description": "SEC disclosure rule increases compliance burden",
+      "condition": "policy_event(agency='SEC' AND rule_stage in ['Final','Effective'])",
+      "on_true_emit": [
+        "debit_put_spreads_on_high_burden_names"
+      ],
+      "metrics_logged": [
+        "Compliance_Cost",
+        "Margin_Squeeze"
+      ]
+    },
+    {
+      "id": "mba_delinquency_spike",
+      "description": "MBA delinquency up \u226550 bp QoQ or \u226520 bp WoW",
+      "condition": "(MBA_Delinquency_bp_change_qoq>=50) OR (MBA_Delinquency_bp_change_wow>=20)",
+      "on_true_emit": [
+        "puts_on_mREIT_ETFs",
+        "calls_on_GSE_proxies"
+      ],
+      "metrics_logged": [
+        "\u0394Delinq_bp",
+        "Pool_Stress_$",
+        "Prepay_Vol"
+      ]
+    },
+    {
+      "id": "cluster_entry_gate",
+      "description": "Entry when cluster score strong and tape confirms if marginal",
+      "condition": "(cluster_score>=75) OR (cluster_score>=70 AND tape_confirm_1h=true)",
+      "on_true_emit": [
+        "structure_from_bias_template"
+      ],
+      "guards": [
+        {
+          "if": "policy_reversal_event=true",
+          "action": "suppress"
+        }
+      ],
+      "metrics_logged": [
+        "cluster_score",
+        "tape_confirm_1h",
+        "policy_reversal_event"
+      ]
+    },
+    {
+      "id": "policy_reversal_exit",
+      "description": "Auto\u2011reduce/close on stay/remand/deferral",
+      "condition": "policy_event(type in ['stay','remand','deferral'])",
+      "on_true_emit": [
+        "reduce_or_close_positions"
+      ],
+      "metrics_logged": [
+        "agency",
+        "doc_id",
+        "timestamp"
+      ]
+    },
+    {
+      "id": "target_hit_exit",
+      "description": "Targets met on underlying or spread",
+      "condition": "(underlying_move>=0.03 AND direction='long') OR (spread_pnl>=0.40)",
+      "on_true_emit": [
+        "scale_out_50pct"
+      ],
+      "metrics_logged": [
+        "underlying_move",
+        "spread_pnl",
+        "direction"
+      ]
+    },
+    {
+      "id": "time_stop_roll",
+      "description": "Roll/close at t\u221220d",
+      "condition": "days_to_expiry<=20",
+      "on_true_emit": [
+        "roll_or_close",
+        "log_roll_reason"
+      ],
+      "metrics_logged": [
+        "days_to_expiry"
+      ]
+    },
+    {
+      "id": "score_decay_exit",
+      "description": "Exit on score deterioration",
+      "condition": "cluster_score<65 ? 'halve' : (cluster_score<55 ? 'close' : 'hold')",
+      "on_true_emit": [
+        "position_resize_by_rule"
+      ],
+      "metrics_logged": [
+        "cluster_score"
+      ]
+    }
+  ],
+  "structures": [
+    {
+      "id": "bear_put_spreads_on_MA_heavy_insurers",
+      "type": "debit_put_spread",
+      "dte": "30-60",
+      "notes": "HUM/CNC exemplars; issuer-specific exposure required"
+    },
+    {
+      "id": "debit_put_spreads_on_fee_dependent_issuers",
+      "type": "debit_put_spread",
+      "dte": "21-45",
+      "notes": "SYF/COF exemplars; roll on appeals"
+    },
+    {
+      "id": "long_diversified_banks_spreads",
+      "type": "call_spread",
+      "dte": "30-60",
+      "notes": "JPM/WFC exemplars"
+    },
+    {
+      "id": "puts_on_LNG_developers",
+      "type": "debit_put_spread",
+      "dte": "30-90",
+      "notes": "TELL/NEXT exemplars"
+    },
+    {
+      "id": "call_spreads_on_utilities",
+      "type": "call_spread",
+      "dte": "45-90",
+      "notes": "XLU or regulated wires"
+    },
+    {
+      "id": "debit_put_spreads_on_high_burden_names",
+      "type": "debit_put_spread",
+      "dte": "30-60",
+      "notes": "fintech/reg-heavy"
+    },
+    {
+      "id": "puts_on_mREIT_ETFs",
+      "type": "debit_put_spread",
+      "dte": "21-45",
+      "notes": "REM exemplar; earnings-aware"
+    },
+    {
+      "id": "calls_on_GSE_proxies",
+      "type": "call_spread",
+      "dte": "21-45",
+      "notes": "GSE-linked names; calendars preferred at low IV"
+    },
+    {
+      "id": "structure_from_bias_template",
+      "type": "template_selector",
+      "rules": "bias=Long\u2192call_spread/BWF IV\u2011aware; bias=Short\u2192debit_put_spread; beta\u2011damp\u2192calendar/low\u2011vega spread",
+      "dte": "30\u201390 infra/util; 30\u201360 financials; 30\u201345 high\u2011beta"
+    }
+  ]
+}

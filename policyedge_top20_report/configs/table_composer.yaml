@@ -1,0 +1,16 @@
+top_k: 20
+weights:
+  dollar_impact: 0.35
+  immediacy: 0.20
+  tradeability: 0.20
+  evidence: 0.20
+  ripple: 0.10
+penalties:
+  manipulation: 0.25
+  data_gaps: 0.25
+publication_gates:
+  evidence_score_min: 0.80
+  posterior_actionable_min: 0.90
+output:
+  markdown: report/reg_alpha_top20.md
+  json: runs/top_signals.json

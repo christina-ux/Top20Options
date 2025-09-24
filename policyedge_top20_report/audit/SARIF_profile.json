@@ -1,0 +1,36 @@
+{
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "PolicyEdge Audit",
+          "version": "v3"
+        }
+      },
+      "results": [
+        {
+          "ruleId": "TW-CMS-NEG-RATE",
+          "level": "warning",
+          "message": {
+            "text": "CMS final rate below advance threshold triggered."
+          }
+        },
+        {
+          "ruleId": "TW-CFPB-LATEFEE",
+          "level": "warning",
+          "message": {
+            "text": "CFPB late fee cap finalized/upheld."
+          }
+        },
+        {
+          "ruleId": "PUB-GATE",
+          "level": "note",
+          "message": {
+            "text": "Actionable items require Posterior \u2265 0.90."
+          }
+        }
+      ]
+    }
+  ]
+}
