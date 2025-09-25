@@ -1,0 +1,131 @@
+{
+  // PolicyEdge Short Signals Kit v1 - Action Card Template
+  // Structure for Slack/Email alerts
+  
+  "action_card": {
+    "header": {
+      "signal_id": "{{signal_id}}",
+      "timestamp": "{{iso_timestamp}}",
+      "severity": "{{severity_level}}",  // HIGH, MEDIUM, LOW
+      "model_name": "{{model_name}}",
+      "confidence_score": "{{confidence_score}}"
+    },
+    
+    "signal_details": {
+      "symbol": "{{target_symbol}}",
+      "signal_type": "{{signal_type}}",  // TRANCHE_SHORT, REG_SHOCK, WAREHOUSE_STRESS
+      "signal_strength": "{{signal_strength}}",
+      "composite_score": "{{composite_score}}",
+      "threshold_breach": "{{threshold_breach}}",
+      "target_price": "{{target_price}}",
+      "current_price": "{{current_price}}"
+    },
+    
+    "analysis": {
+      "scenario": "{{scenario_name}}",
+      "key_factors": [
+        "{{factor_1}}",
+        "{{factor_2}}",
+        "{{factor_3}}"
+      ],
+      "risk_assessment": {
+        "probability_of_default": "{{pd_estimate}}",
+        "loss_given_default": "{{lgd_estimate}}",
+        "expected_loss": "{{el_estimate}}",
+        "time_horizon": "{{horizon_days}} days"
+      }
+    },
+    
+    "evidence": {
+      "primary_sources": [
+        {
+          "source": "{{source_name}}",
+          "url": "{{source_url}}",
+          "relevance_score": "{{relevance}}"
+        }
+      ],
+      "supporting_data": {
+        "enforcement_actions": "{{enforcement_count}}",
+        "regulatory_citations": "{{reg_citation_count}}",
+        "market_indicators": [
+          {
+            "indicator": "{{indicator_name}}",
+            "value": "{{indicator_value}}",
+            "change": "{{indicator_change}}"
+          }
+        ]
+      }
+    },
+    
+    "recommendation": {
+      "action": "{{recommended_action}}",  // MONITOR, INVESTIGATE, ALERT
+      "urgency": "{{urgency_level}}",     // IMMEDIATE, HIGH, MEDIUM, LOW
+      "next_review": "{{next_review_date}}",
+      "suggested_structures": [
+        {
+          "structure_type": "{{structure_name}}",
+          "dte_range": "{{days_to_expiry}}",
+          "delta_range": "{{delta_min}}-{{delta_max}}",
+          "max_risk": "{{max_risk_amount}}",
+          "hedge_ratio": "{{hedge_percentage}}"
+        }
+      ]
+    },
+    
+    "risk_controls": {
+      "stop_loss": "{{stop_loss_level}}",
+      "profit_target": "{{profit_target_level}}",
+      "position_size_limit": "{{max_position_size}}",
+      "correlation_limits": {
+        "sector_concentration": "{{sector_limit}}",
+        "geographic_concentration": "{{geo_limit}}"
+      }
+    },
+    
+    "compliance": {
+      "mnpi_cleared": true,
+      "source_verification": "PASSED",
+      "audit_trail_id": "{{audit_id}}",
+      "reviewer": "{{reviewer_id}}",
+      "approval_status": "{{approval_status}}"
+    },
+    
+    "metadata": {
+      "generated_by": "PolicyEdge Short Signals Kit v1",
+      "run_id": "{{run_id}}",
+      "org_id": "{{org_id}}",
+      "version": "1.0",
+      "expires_at": "{{expiry_timestamp}}"
+    },
+    
+    "footer": {
+      "disclaimer": "This is an educational analysis tool. Not investment advice. All investments carry risk of loss. Consult qualified professionals before making investment decisions.",
+      "contact": "{{support_contact}}",
+      "documentation_url": "{{docs_url}}"
+    }
+  },
+  
+  "formatting": {
+    "slack": {
+      "color_scheme": {
+        "HIGH": "#ff4444",
+        "MEDIUM": "#ffaa00", 
+        "LOW": "#44aa44"
+      },
+      "emoji_map": {
+        "TRANCHE_SHORT": ":warning:",
+        "REG_SHOCK": ":exclamation:",
+        "WAREHOUSE_STRESS": ":rotating_light:"
+      }
+    },
+    
+    "email": {
+      "subject_template": "[{{severity}}] PolicyEdge Signal: {{symbol}} - {{signal_type}}",
+      "priority": {
+        "HIGH": "high",
+        "MEDIUM": "normal",
+        "LOW": "low"
+      }
+    }
+  }
+}

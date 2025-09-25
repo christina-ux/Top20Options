@@ -1,0 +1,161 @@
+{
+  "name": "Tranche Short v1",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "id": "start-node"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Tranche Default Curve Short Model\n// Pool → Stress → Waterfall → Signal\n\nconst scenario = items[0].json.scenario || {\n  hpi_change: -0.28,\n  unemployment_rate: 10.0,\n  stress_multiplier: 2.5\n};\n\nconst poolData = items[0].json.pool_data || {\n  total_balance: 1000000000,\n  avg_ltv: 0.82,\n  avg_dti: 0.38,\n  avg_credit_score: 685\n};\n\nconst tranches = items[0].json.tranches || [\n  { class: 'AAA', attachment: 0.0, detachment: 0.06, balance: 600000000 },\n  { class: 'AA', attachment: 0.06, detachment: 0.10, balance: 400000000 }\n];\n\n// Calculate stressed pool losses\nfunction calculatePoolLosses(pool, scenario) {\n  const baseLossRate = 0.02; // 2% base loss rate\n  const hpiAdjustment = Math.max(0, -scenario.hpi_change * 0.3);\n  const unempAdjustment = (scenario.unemployment_rate - 3.5) * 0.005;\n  \n  const stressedLossRate = (baseLossRate + hpiAdjustment + unempAdjustment) * scenario.stress_multiplier;\n  \n  return {\n    loss_rate: Math.min(0.5, stressedLossRate),\n    loss_amount: pool.total_balance * Math.min(0.5, stressedLossRate)\n  };\n}\n\n// Calculate tranche losses using waterfall\nfunction calculateTrancheLosses(poolLosses, tranches) {\n  const results = [];\n  \n  for (const tranche of tranches) {\n    let trancheLossRate = 0;\n    \n    if (poolLosses.loss_rate > tranche.attachment) {\n      if (poolLosses.loss_rate >= tranche.detachment) {\n        trancheLossRate = 1.0;\n      } else {\n        trancheLossRate = (poolLosses.loss_rate - tranche.attachment) / \n                         (tranche.detachment - tranche.attachment);\n      }\n    }\n    \n    const trancheLoss = trancheLossRate * tranche.balance;\n    \n    results.push({\n      class: tranche.class,\n      loss_rate: trancheLossRate,\n      loss_amount: trancheLoss,\n      signal_strength: trancheLossRate,\n      attachment: tranche.attachment,\n      detachment: tranche.detachment\n    });\n  }\n  \n  return results;\n}\n\nconst poolLosses = calculatePoolLosses(poolData, scenario);\nconst trancheLosses = calculateTrancheLosses(poolLosses, tranches);\n\n// Generate signals for tranches with significant losses\nconst signals = [];\n\nfor (const tranche of trancheLosses) {\n  if (tranche.signal_strength > 0.1) { // 10% threshold\n    signals.push({\n      signal_id: `TRANCHE_SHORT_${tranche.class}_${Date.now()}`,\n      model_id: 1,\n      model_name: 'Tranche Default Curve Short',\n      symbol: `MBS_${tranche.class}`,\n      signal_type: 'TRANCHE_SHORT',\n      signal_strength: tranche.signal_strength,\n      confidence_score: Math.min(0.95, 0.6 + (tranche.signal_strength * 0.3)),\n      target_price: null,\n      evidence: {\n        pool_loss_rate: poolLosses.loss_rate,\n        tranche_attachment: tranche.attachment,\n        tranche_detachment: tranche.detachment,\n        scenario_params: scenario,\n        calculation_timestamp: new Date().toISOString()\n      },\n      org_id: $env.ORG_ID || 'demo'\n    });\n  }\n}\n\nreturn signals.map(signal => ({ json: signal }));"
+      },
+      "name": "Pool Stress Analysis",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [440, 300],
+      "id": "pool-stress-node"
+    },
+    {
+      "parameters": {
+        "resource": "database",
+        "operation": "select",
+        "query": "SELECT * FROM peai.tranches WHERE org_id = $1 ORDER BY current_balance DESC LIMIT 10",
+        "additionalFields": {
+          "queryParameters": "={{ $env.ORG_ID || 'demo' }}"
+        }
+      },
+      "name": "Load Tranche Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [640, 200],
+      "id": "load-tranche-data"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/insert_signal",
+        "authentication": "headerAuth",
+        "requestMethod": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify($json) }}",
+        "options": {
+          "headers": {
+            "apikey": "={{ $env.SUPABASE_ANON_KEY }}",
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "name": "Insert Signal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [640, 400],
+      "id": "insert-signal-node"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.signal_strength }}",
+              "operation": "larger",
+              "value2": 0.75
+            }
+          ]
+        }
+      },
+      "name": "High Confidence Filter",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [840, 300],
+      "id": "confidence-filter"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate audit log entry\nconst auditEntry = {\n  run_id: `TRANCHE_RUN_${Date.now()}`,\n  model_id: 1,\n  model_version: 'v1.0',\n  scenario_name: items[0].json.evidence?.scenario_params?.name || 'CCAR_2025_SEVERE',\n  parameters: {\n    total_signals: items.length,\n    high_confidence_signals: items.filter(item => item.json.confidence_score > 0.8).length,\n    avg_signal_strength: items.reduce((sum, item) => sum + item.json.signal_strength, 0) / items.length\n  },\n  status: 'completed',\n  started_at: new Date().toISOString(),\n  completed_at: new Date().toISOString(),\n  org_id: $env.ORG_ID || 'demo'\n};\n\nreturn [{ json: auditEntry }];"
+      },
+      "name": "Generate Audit Log",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1040, 300],
+      "id": "audit-log-node"
+    },
+    {
+      "parameters": {
+        "resource": "database",
+        "operation": "insert",
+        "schema": "peai",
+        "table": "runs",
+        "columns": "run_id, model_id, model_version, scenario_name, parameters, status, started_at, completed_at, org_id",
+        "additionalFields": {}
+      },
+      "name": "Save Run Record",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [1240, 300],
+      "id": "save-run-record"
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Pool Stress Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pool Stress Analysis": {
+      "main": [
+        [
+          {
+            "node": "Insert Signal",
+            "type": "main", 
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Signal": {
+      "main": [
+        [
+          {
+            "node": "High Confidence Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "High Confidence Filter": {
+      "main": [
+        [
+          {
+            "node": "Generate Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Save Run Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "id": "tranche-short-workflow-v1"
+}

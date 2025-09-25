@@ -1,0 +1,119 @@
+{
+  "reflex_engine_config": {
+    "version": "1.0",
+    "description": "MNPI-block and audit settings for Reflex Engine integration",
+    "mnpi_protection": {
+      "enabled": true,
+      "public_sources_only": true,
+      "allowed_domains": [
+        "sec.gov",
+        "federalregister.gov", 
+        "treasury.gov",
+        "federalreserve.gov",
+        "fdic.gov",
+        "occ.gov",
+        "consumerfinance.gov",
+        "cftc.gov",
+        "finra.org",
+        "bloomberg.com",
+        "reuters.com",
+        "wsj.com",
+        "ft.com"
+      ],
+      "blocked_patterns": [
+        "*internal*",
+        "*confidential*",
+        "*proprietary*",
+        "*non-public*",
+        "*/private/*",
+        "*/internal/*"
+      ],
+      "screening_keywords": [
+        "material non-public",
+        "inside information", 
+        "confidential",
+        "proprietary",
+        "internal only",
+        "not for distribution"
+      ]
+    },
+    "audit_settings": {
+      "log_all_queries": true,
+      "log_data_access": true,
+      "retention_days": 2555,
+      "encrypt_logs": true,
+      "audit_trail_required": true,
+      "approval_required_for": [
+        "model_parameter_changes",
+        "threshold_adjustments",
+        "signal_overrides"
+      ]
+    },
+    "data_governance": {
+      "source_verification_required": true,
+      "minimum_sources_per_signal": 2,
+      "maximum_data_age_hours": 24,
+      "require_citation_urls": true,
+      "prohibit_speculation": true
+    },
+    "signal_validation": {
+      "backtesting_required": true,
+      "minimum_confidence_threshold": 0.70,
+      "maximum_false_positive_rate": 0.15,
+      "require_statistical_significance": true,
+      "p_value_threshold": 0.05
+    },
+    "output_controls": {
+      "disclaimer_required": true,
+      "no_trade_recommendations": true,
+      "educational_purpose_only": true,
+      "risk_warnings": [
+        "This is not investment advice",
+        "Past performance does not guarantee future results", 
+        "All investments carry risk of loss",
+        "Consult qualified professionals before making investment decisions"
+      ]
+    },
+    "rate_limiting": {
+      "requests_per_minute": 100,
+      "requests_per_hour": 1000,
+      "requests_per_day": 10000,
+      "burst_allowance": 10
+    },
+    "security_controls": {
+      "require_authentication": true,
+      "require_org_isolation": true,
+      "session_timeout_minutes": 60,
+      "ip_whitelist_enabled": false,
+      "mfa_required": false,
+      "api_key_rotation_days": 90
+    },
+    "compliance_frameworks": [
+      "SOX",
+      "GDPR", 
+      "CCPA",
+      "SOC2_TYPE_II",
+      "FINRA_RULE_3110",
+      "SEC_INVESTMENT_ADVISERS_ACT"
+    ]
+  },
+  "emergency_controls": {
+    "circuit_breakers": {
+      "market_volatility_threshold": 0.05,
+      "correlation_breakdown_threshold": 0.3,
+      "data_quality_minimum": 0.95
+    },
+    "shutdown_triggers": [
+      "data_source_compromise",
+      "model_performance_degradation",
+      "regulatory_investigation",
+      "security_breach"
+    ],
+    "notification_channels": [
+      "email",
+      "slack", 
+      "sms",
+      "audit_log"
+    ]
+  }
+}
