@@ -1,0 +1,71 @@
+{
+  "scenario_name": "CCAR 2025 Severely Adverse",
+  "description": "Federal Reserve CCAR severely adverse scenario for 2025",
+  "parameters": {
+    "time_horizon_quarters": 9,
+    "gdp": {
+      "peak_to_trough_decline": -3.5,
+      "quarters_to_trough": 3,
+      "recovery_quarters": 6
+    },
+    "unemployment": {
+      "starting_rate": 3.8,
+      "peak_rate": 10.0,
+      "quarters_to_peak": 4
+    },
+    "house_prices": {
+      "national_decline": -28.0,
+      "peak_decline_quarter": 6,
+      "regional_variations": {
+        "west_coast": -35.0,
+        "northeast": -25.0,
+        "southeast": -20.0,
+        "midwest": -22.0
+      }
+    },
+    "commercial_real_estate": {
+      "office_decline": -45.0,
+      "retail_decline": -35.0,
+      "industrial_decline": -15.0
+    },
+    "equity_markets": {
+      "peak_to_trough_decline": -55.0,
+      "volatility_index_peak": 70.0,
+      "credit_spreads_widening_bps": 500
+    },
+    "interest_rates": {
+      "treasury_10y_trough": 0.5,
+      "treasury_3m_trough": 0.1,
+      "corporate_spread_widening_bps": 600,
+      "mortgage_rate_peak": 8.5
+    },
+    "stress_triggers": {
+      "default_multiplier": 3.0,
+      "lgd_floor": 0.45,
+      "correlation_adjustment": 1.25,
+      "concentration_penalty": 0.15
+    }
+  },
+  "model_overrides": {
+    "model_1_tranche_short": {
+      "subordination_haircut": 0.20,
+      "waterfall_stress_multiplier": 2.5
+    },
+    "model_2_regulatory_shock": {
+      "enforcement_severity_multiplier": 1.5,
+      "hmda_penalty_base": 50000000
+    },
+    "model_5_warehouse_stress": {
+      "margin_call_threshold_reduction": 0.15,
+      "liquidation_discount": 0.25
+    }
+  },
+  "signal_thresholds": {
+    "composite_score_minimum": 0.75,
+    "confidence_threshold": 0.80,
+    "evidence_required_sources": 2
+  },
+  "effective_date": "2025-01-01",
+  "expiry_date": "2025-12-31",
+  "version": "1.0"
+}
