@@ -6,8 +6,6 @@ from datetime import datetime
 import asyncio
 
 # Add the policyedge_top20_report directory to Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'policyedge_top20_report'))
-
 from policyedge_top20_report.app.services.impact_modeler import compute_reg_impact
 from policyedge_top20_report.app.services.dollar_impact_calculator import finalize_dollar_impact
 from policyedge_top20_report.app.services.table_composer import score_and_top5
