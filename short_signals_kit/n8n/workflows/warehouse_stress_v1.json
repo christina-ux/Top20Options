@@ -1,0 +1,192 @@
+{
+  "name": "Warehouse Stress v1",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "id": "start-node"
+    },
+    {
+      "parameters": {
+        "resource": "database",
+        "operation": "select", 
+        "query": "SELECT * FROM peai.warehouse WHERE outstanding_balance > 0 AND org_id = $1 ORDER BY current_margin_excess ASC",
+        "additionalFields": {
+          "queryParameters": "={{ $env.ORG_ID || 'demo' }}"
+        }
+      },
+      "name": "Load Warehouse Lines",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [440, 300],
+      "id": "load-warehouse-lines"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Warehouse Line Stress Arbitrage Model\n// Price Shocks → Margin Call → Signal\n\nconst priceShocks = {\n  mortgage_rates: 0.015, // +150bps shock\n  hpi_change: -0.15,     // -15% home prices\n  credit_spreads: 0.03,  // +300bps credit spreads\n  equity_decline: -0.25  // -25% equity markets\n};\n\nfunction calculateWarehouseStress(facilities, shocks) {\n  const results = [];\n  \n  facilities.forEach(facility => {\n    const data = facility.json;\n    \n    // Calculate collateral value impact\n    const collateralValue = data.outstanding_balance / data.advance_rate;\n    const stressedCollateralValue = collateralValue * (1 + shocks.hpi_change);\n    \n    // Calculate new margin excess after stress\n    const newMarginExcess = (stressedCollateralValue * data.advance_rate) - data.outstanding_balance;\n    const marginCallAmount = Math.max(0, -newMarginExcess);\n    \n    // Calculate liquidation impact\n    const liquidationDiscount = 0.25; // 25% discount on distressed sales\n    const liquidationProceeds = stressedCollateralValue * (1 - liquidationDiscount);\n    const shortfallAmount = Math.max(0, data.outstanding_balance - liquidationProceeds);\n    \n    // Signal strength based on margin call severity\n    let signalStrength = 0;\n    if (marginCallAmount > 0) {\n      signalStrength = Math.min(1.0, marginCallAmount / data.facility_size);\n    }\n    \n    // Additional stress from credit spreads (affects funding costs)\n    const fundingStress = shocks.credit_spreads * 0.5; // 50% passthrough\n    signalStrength = Math.min(1.0, signalStrength + fundingStress);\n    \n    if (signalStrength > 0.2) { // 20% threshold\n      results.push({\n        signal_id: `WAREHOUSE_STRESS_${data.facility_id}_${Date.now()}`,\n        model_id: 5,\n        model_name: 'Warehouse Line Stress Arbitrage',\n        symbol: getLenderTicker(data.lender_id),\n        signal_type: 'WAREHOUSE_STRESS',\n        signal_strength: signalStrength,\n        confidence_score: Math.min(0.95, 0.6 + (signalStrength * 0.3)),\n        target_price: null,\n        evidence: {\n          facility_id: data.facility_id,\n          lender_id: data.lender_id,\n          facility_size: data.facility_size,\n          outstanding_balance: data.outstanding_balance,\n          current_margin_excess: data.current_margin_excess,\n          margin_call_amount: marginCallAmount,\n          shortfall_amount: shortfallAmount,\n          stress_scenario: shocks,\n          collateral_impact: {\n            original_value: collateralValue,\n            stressed_value: stressedCollateralValue,\n            value_decline: collateralValue - stressedCollateralValue\n          },\n          calculation_timestamp: new Date().toISOString()\n        },\n        org_id: $env.ORG_ID || 'demo'\n      });\n    }\n  });\n  \n  return results;\n}\n\n// Helper function to map lender IDs to stock tickers\nfunction getLenderTicker(lenderId) {\n  const lenderMap = {\n    'WFC_001': 'WFC',\n    'BAC_001': 'BAC',\n    'JPM_001': 'JPM',\n    'USB_001': 'USB',\n    'PNC_001': 'PNC',\n    'COF_001': 'COF'\n  };\n  \n  return lenderMap[lenderId] || 'UNKNOWN';\n}\n\nconst signals = calculateWarehouseStress(items, priceShocks);\n\nreturn signals.map(signal => ({ json: signal }));"
+      },
+      "name": "Warehouse Stress Calculation",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [640, 300],
+      "id": "warehouse-stress-calc"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.evidence.margin_call_amount }}",
+              "operation": "larger",
+              "value2": 1000000
+            }
+          ]
+        }
+      },
+      "name": "Material Margin Call Filter",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [840, 300],
+      "id": "margin-call-filter"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/insert_signal",
+        "authentication": "headerAuth",
+        "requestMethod": "POST", 
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify($json) }}",
+        "options": {\n          "headers": {\n            "apikey": "={{ $env.SUPABASE_ANON_KEY }}",\n            "Content-Type": "application/json"\n          }\n        }
+      },
+      "name": "Insert Signal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1040, 300],
+      "id": "insert-signal"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Calculate aggregate sector exposure\nconst facilitiesByLender = new Map();\n\nitems.forEach(item => {\n  const lenderId = item.json.evidence.lender_id;\n  if (!facilitiesByLender.has(lenderId)) {\n    facilitiesByLender.set(lenderId, []);\n  }\n  facilitiesByLender.get(lenderId).push(item.json);\n});\n\nconst sectorSignals = [];\n\n// Generate sector-level signals for lenders with multiple stressed facilities\nfor (const [lenderId, signals] of facilitiesByLender.entries()) {\n  if (signals.length >= 2) { // Multiple facilities at risk\n    const totalMarginCalls = signals.reduce((sum, s) => sum + s.evidence.margin_call_amount, 0);\n    const avgSignalStrength = signals.reduce((sum, s) => sum + s.signal_strength, 0) / signals.length;\n    \n    if (totalMarginCalls > 10000000) { // $10M+ total margin calls\n      sectorSignals.push({\n        signal_id: `WAREHOUSE_SECTOR_${lenderId}_${Date.now()}`,\n        model_id: 5,\n        model_name: 'Warehouse Stress Arbitrage - Lender Concentration',\n        symbol: signals[0].symbol, // Use first signal's ticker\n        signal_type: 'WAREHOUSE_STRESS',\n        signal_strength: Math.min(1.0, avgSignalStrength * 1.2), // Boost for concentration\n        confidence_score: 0.80,\n        evidence: {\n          lender_id: lenderId,\n          facility_count: signals.length,\n          total_margin_calls: totalMarginCalls,\n          avg_signal_strength: avgSignalStrength,\n          facility_details: signals.map(s => ({\n            facility_id: s.evidence.facility_id,\n            margin_call: s.evidence.margin_call_amount,\n            signal_strength: s.signal_strength\n          })),\n          calculation_timestamp: new Date().toISOString()\n        },\n        org_id: $env.ORG_ID || 'demo'\n      });\n    }\n  }\n}\n\nreturn sectorSignals.map(signal => ({ json: signal }));"
+      },
+      "name": "Lender Concentration Analysis",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [640, 500],
+      "id": "lender-concentration"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate run summary\nconst individualSignals = items.filter(item => !item.json.signal_id.includes('SECTOR'));\nconst sectorSignals = items.filter(item => item.json.signal_id.includes('SECTOR'));\n\nconst runSummary = {\n  run_id: `WAREHOUSE_RUN_${Date.now()}`,\n  model_id: 5,\n  model_version: 'v1.0',\n  scenario_name: 'Warehouse_Stress_Base',\n  parameters: {\n    price_shocks: {\n      mortgage_rates: 0.015,\n      hpi_change: -0.15,\n      credit_spreads: 0.03,\n      equity_decline: -0.25\n    },\n    total_signals: items.length,\n    individual_facility_signals: individualSignals.length,\n    lender_concentration_signals: sectorSignals.length,\n    total_margin_calls: individualSignals.reduce((sum, item) => \n      sum + (item.json.evidence?.margin_call_amount || 0), 0\n    )\n  },\n  status: 'completed',\n  started_at: new Date().toISOString(),\n  completed_at: new Date().toISOString(),\n  org_id: $env.ORG_ID || 'demo'\n};\n\nreturn [{ json: runSummary }];"
+      },
+      "name": "Generate Run Summary",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1240, 400],
+      "id": "run-summary"
+    },
+    {
+      "parameters": {
+        "resource": "database",
+        "operation": "insert",
+        "schema": "peai",
+        "table": "runs",
+        "columns": "run_id, model_id, model_version, scenario_name, parameters, status, started_at, completed_at, org_id"
+      },
+      "name": "Save Run Record",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [1440, 400],
+      "id": "save-run"
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Load Warehouse Lines",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Warehouse Lines": {
+      "main": [
+        [
+          {
+            "node": "Warehouse Stress Calculation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Warehouse Stress Calculation": {
+      "main": [
+        [
+          {
+            "node": "Material Margin Call Filter",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Lender Concentration Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Material Margin Call Filter": {
+      "main": [
+        [
+          {
+            "node": "Insert Signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Signal": {
+      "main": [
+        [
+          {
+            "node": "Generate Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lender Concentration Analysis": {
+      "main": [
+        [
+          {
+            "node": "Generate Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Run Summary": {
+      "main": [
+        [
+          {
+            "node": "Save Run Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "id": "warehouse-stress-v1"
+}

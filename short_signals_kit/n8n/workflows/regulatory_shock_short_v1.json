@@ -1,0 +1,172 @@
+{
+  "name": "Regulatory Shock Short v1",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "id": "start-node"
+    },
+    {
+      "parameters": {
+        "resource": "database",
+        "operation": "select",
+        "query": "SELECT * FROM peai.enforcement WHERE action_date >= CURRENT_DATE - INTERVAL '30 days' AND org_id = $1 ORDER BY penalty_amount DESC",
+        "additionalFields": {
+          "queryParameters": "={{ $env.ORG_ID || 'demo' }}"
+        }
+      },
+      "name": "Load Recent Enforcement",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 1,
+      "position": [440, 200],
+      "id": "load-enforcement"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Regulatory Shock Short Model\n// HMDA + Enforcement → P&L Hit → Signal\n\nconst enforcementActions = items.filter(item => item.json.penalty_amount > 1000000); // $1M+ penalties\nconst hmdaViolations = items.filter(item => item.json.description && item.json.description.toLowerCase().includes('hmda'));\n\nfunction calculateRegulatoryImpact(actions) {\n  const results = [];\n  \n  // Group by institution\n  const institutionMap = new Map();\n  \n  actions.forEach(action => {\n    const institution = action.json.institution_name;\n    if (!institutionMap.has(institution)) {\n      institutionMap.set(institution, []);\n    }\n    institutionMap.get(institution).push(action.json);\n  });\n  \n  // Calculate impact per institution\n  for (const [institution, actions] of institutionMap.entries()) {\n    const totalPenalties = actions.reduce((sum, action) => sum + (action.penalty_amount || 0), 0);\n    const actionCount = actions.length;\n    const recentActions = actions.filter(action => \n      new Date(action.action_date) >= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)\n    ).length;\n    \n    // Calculate signal strength based on penalty severity and frequency\n    const penaltyScore = Math.min(1.0, totalPenalties / 100000000); // Normalize to $100M\n    const frequencyScore = Math.min(1.0, actionCount / 5); // Max at 5 actions\n    const recencyScore = recentActions > 0 ? 0.3 : 0;\n    \n    const signalStrength = (penaltyScore * 0.5) + (frequencyScore * 0.3) + recencyScore;\n    \n    if (signalStrength > 0.3) { // 30% threshold\n      results.push({\n        signal_id: `REG_SHOCK_${institution.replace(/\\s+/g, '_').toUpperCase()}_${Date.now()}`,\n        model_id: 2,\n        model_name: 'Regulatory Shock Short',\n        symbol: getInstitutionTicker(institution), // Would map to stock ticker\n        signal_type: 'REG_SHOCK',\n        signal_strength: signalStrength,\n        confidence_score: Math.min(0.95, 0.5 + (signalStrength * 0.4)),\n        target_price: null,\n        evidence: {\n          institution_name: institution,\n          total_penalties: totalPenalties,\n          action_count: actionCount,\n          recent_actions: recentActions,\n          penalty_breakdown: actions.map(a => ({\n            date: a.action_date,\n            amount: a.penalty_amount,\n            type: a.action_type,\n            agency: a.agency\n          })),\n          calculation_timestamp: new Date().toISOString()\n        },\n        org_id: $env.ORG_ID || 'demo'\n      });\n    }\n  }\n  \n  return results;\n}\n\n// Helper function to map institution names to tickers\nfunction getInstitutionTicker(institutionName) {\n  const tickerMap = {\n    'Wells Fargo': 'WFC',\n    'Bank of America': 'BAC', \n    'JPMorgan Chase': 'JPM',\n    'Citigroup': 'C',\n    'Goldman Sachs': 'GS',\n    'Morgan Stanley': 'MS'\n  };\n  \n  for (const [name, ticker] of Object.entries(tickerMap)) {\n    if (institutionName.toLowerCase().includes(name.toLowerCase())) {\n      return ticker;\n    }\n  }\n  \n  return 'UNKNOWN';\n}\n\nconst signals = calculateRegulatoryImpact(items);\n\nreturn signals.map(signal => ({ json: signal }));"
+      },
+      "name": "Regulatory Impact Analysis",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [640, 300],
+      "id": "regulatory-analysis"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/insert_signal",
+        "authentication": "headerAuth", 
+        "requestMethod": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify($json) }}",
+        "options": {
+          "headers": {
+            "apikey": "={{ $env.SUPABASE_ANON_KEY }}",
+            "Content-Type": "application/json"
+          }
+        }
+      },
+      "name": "Insert Signal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [840, 300],
+      "id": "insert-signal"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.symbol }}",
+              "operation": "notEqual",
+              "value2": "UNKNOWN"
+            }
+          ]
+        }
+      },
+      "name": "Valid Ticker Filter",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1040, 300],
+      "id": "ticker-filter"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Calculate HMDA-specific penalties\nconst hmdaPattern = /hmda|home mortgage disclosure/i;\nconst craPattern = /community reinvestment|cra/i;\nconst fairLendingPattern = /fair lending|redlining|discrimination/i;\n\nconst hmdaRelated = items.filter(item => {\n  const desc = item.json.evidence?.penalty_breakdown?.some(p => \n    hmdaPattern.test(p.type || '') || hmdaPattern.test(item.json.description || '')\n  );\n  return desc;\n});\n\nif (hmdaRelated.length > 0) {\n  const totalHmdaPenalties = hmdaRelated.reduce((sum, item) => {\n    const penalties = item.json.evidence?.penalty_breakdown?.filter(p => \n      hmdaPattern.test(p.type || '')\n    ) || [];\n    return sum + penalties.reduce((pSum, p) => pSum + (p.amount || 0), 0);\n  }, 0);\n  \n  // Generate aggregate HMDA sector signal if penalties > $50M\n  if (totalHmdaPenalties > 50000000) {\n    return [{\n      json: {\n        signal_id: `HMDA_SECTOR_SHOCK_${Date.now()}`,\n        model_id: 2,\n        model_name: 'Regulatory Shock Short - HMDA Sector',\n        symbol: 'XLF', // Financial sector ETF\n        signal_type: 'REG_SHOCK',\n        signal_strength: Math.min(1.0, totalHmdaPenalties / 200000000),\n        confidence_score: 0.85,\n        evidence: {\n          sector: 'financial',\n          total_hmda_penalties: totalHmdaPenalties,\n          affected_institutions: hmdaRelated.length,\n          calculation_timestamp: new Date().toISOString()\n        },\n        org_id: $env.ORG_ID || 'demo'\n      }\n    }];\n  }\n}\n\nreturn [];"
+      },
+      "name": "HMDA Sector Analysis",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [440, 400],
+      "id": "hmda-analysis"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Merge individual and sector signals\nconst allSignals = [...items];\nconst runSummary = {\n  total_signals: allSignals.length,\n  individual_institution_signals: allSignals.filter(s => s.json.symbol !== 'XLF').length,\n  sector_signals: allSignals.filter(s => s.json.symbol === 'XLF').length,\n  avg_signal_strength: allSignals.reduce((sum, s) => sum + s.json.signal_strength, 0) / allSignals.length,\n  completion_timestamp: new Date().toISOString()\n};\n\nreturn [{ json: runSummary }];"
+      },
+      "name": "Consolidate Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1240, 350],
+      "id": "consolidate-results"
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Load Recent Enforcement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Recent Enforcement": {
+      "main": [
+        [
+          {
+            "node": "Regulatory Impact Analysis",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HMDA Sector Analysis", 
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Regulatory Impact Analysis": {
+      "main": [
+        [
+          {
+            "node": "Insert Signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Signal": {
+      "main": [
+        [
+          {
+            "node": "Valid Ticker Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Ticker Filter": {
+      "main": [
+        [
+          {
+            "node": "Consolidate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HMDA Sector Analysis": {
+      "main": [
+        [
+          {
+            "node": "Consolidate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "id": "regulatory-shock-short-v1"
+}
